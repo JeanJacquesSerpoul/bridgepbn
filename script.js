@@ -478,8 +478,7 @@ vulnerabilitySelector.addEventListener('change', (event) => {
              allTags: JSON.parse(JSON.stringify(selectedDeal.allTags))
         };
 
-        // <<< CHANGED: Display the original/default board number in the title
-        dealNumberDisplay.textContent = currentDealData.dealNumber;
+        dealNumberDisplay.textContent = sequentialIndex + 1;
         clearDealDisplay();
         clearIntermediateZoneDisplay();
         clearFeedback(saveFeedback);
