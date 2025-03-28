@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PBN Viewer</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* ... (keep existing styles) ... */
+        .card {
+            border: 1px solid #ccc;
+            padding: 4px 6px;
+            margin: 2px;
+            border-radius: 4px;
+            cursor: grab;
+            background-color: white;
+            font-family: 'Arial', sans-serif;
+            font-size: 0.9rem;
+            user-select: none;
+            touch-action: none;
+            min-width: 30px;
+            text-align: center;
+        }
+        .card.dragging {
+            opacity: 0.4;
+            cursor: grabbing;
+        }
+        .suit-container {
+            min-height: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 2px;
+            border: 1px dashed transparent;
+            transition: background-color 0.2s ease, border-color 0.2s ease;
+        }
+
+        #intermediate-dropzone {
+            align-items: flex-start;
+            min-height: 60px;
+        }
+
+        #intermediate-dropzone > span[data-intermediate-suit] {
+            vertical-align: top;
+            min-width: 25px;
+        }
+
+        .suit-container.drag-over {
+            border-color: #4ade80;
+            background-color: #f0fdf4;
+        }
+
+        .suit-container.drag-invalid {
+            border-color: #f87171; /* Rouge */
+            background-color: #fef2f2;
+        }
+
+        .suit-symbol {
+            font-size: 1.2em;
+            margin-right: 5px;
+            flex-shrink: 0;
+        }
+        .suit-s { color: black; }
+        .suit-h { color: red; }
+        .suit-d { color: red; }
+        .suit-c { color: black; }
+
+        @media (max-width: 640px) {
+            .card {
+                font-size: 0.8rem;
+                padding: 3px 5px;
+                min-width: 25px;
+            }
+            #intermediate-dropzone {
+                min-height: 50px;
+            }
+        }
+
+        /* Styles for feedback messages */
+        .feedback-message {
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-top: 0.5rem; /* Equivalent to mt-2 */
+            font-size: 0.875rem; /* Equivalent to text-sm */
+            border: 1px solid transparent; /* Base border */
+        }
+        .feedback-error {
+            background-color: #fef2f2; /* bg-red-50 */
+            color: #dc2626; /* text-red-700 */
+            border-color: #fca5a5; /* border-red-300 */
+        }
+        .feedback-warning {
+            background-color: #fffbeb; /* bg-yellow-50 */
+            color: #b45309; /* text-yellow-700 */
+            border-color: #fde68a; /* border-yellow-300 */
+        }
+        .feedback-info {
+            background-color: #eff6ff; /* bg-blue-50 */
+            color: #1d4ed8; /* text-blue-700 */
+            border-color: #bfdbfe; /* border-blue-300 */
+        }
+        .feedback-success {
+            background-color: #f0fdf4; /* bg-green-50 */
+            color: #15803d; /* text-green-700 */
+            border-color: #a7f3d0; /* border-green-300 */
+        }
+
+        /* Style for the card count */
+        .card-count {
+            font-size: 0.8em; /* Slightly smaller */
+            font-weight: normal; /* Not bold like the name */
+            margin-left: 0.5rem; /* Space from the name */
+        }
+        .count-correct {
+            color: #6b7280; /* Tailwind gray-500 */
+        }
+        .count-incorrect {
+            color: #dc2626; /* Tailwind red-600 */
+            font-weight: bold; /* Make incorrect count stand out */
+        }
+        /* Style for deal info selectors */
+        .deal-info-controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem; /* Space between items */
+            margin-bottom: 1rem; /* Space below controls */
+            align-items: center;
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+        }
+        .deal-info-controls label {
+            font-weight: 600; /* Semibold */
+            margin-right: 0.25rem;
+        }
+        .deal-info-controls select {
+            padding: 0.25rem 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: white;
+            min-width: 80px; /* Ensure minimum width */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 font-sans">
+
+    <div class="container mx-auto max-w-4xl bg-white p-6 rounded shadow-lg">
+
+        <h1 class="text-2xl font-bold mb-4 text-center text-blue-700">Visualiseur de Donnes Bridge (PBN)</h1>
+
+        <!-- Section Chargement Fichier / Actions -->
+        <div class="mb-4 p-4 border rounded bg-gray-50">
+            <h2 class="text-lg font-semibold mb-2">Charger / Modifier</h2>
+            <div class="flex flex-wrap gap-2">
+                <button id="load-default-btn" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                    Défaut
+                </button>
+                <button id="load-custom-btn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                    Choisir un fichier PBN...
+                </button>
+                <button id="clear-hands-btn" class="bg-orange-500 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded" title="Déplacer toutes les cartes des mains vers la zone intermédiaire">
+                    Vider Mains
+                </button>
+                <input type="file" id="pbn-file-input" accept=".pbn" class="hidden">
+            </div>
+            <p id="file-info" class="mt-2 text-sm text-gray-600"></p>
+        </div>
+
+        <!-- Section Sélection Donne -->
+        <div id="deal-selection-section" class="mb-4 p-4 border rounded bg-gray-50 hidden">
+            <label for="deal-selector" class="block text-lg font-semibold mb-2">Sélectionner la donne :</label>
+            <select id="deal-selector" class="block w-full p-2 border border-gray-300 rounded">
+                <!-- Les options seront ajoutées par JS -->
+            </select>
+        </div>
+
+        <!-- Section Affichage Donne -->
+        <div id="deal-display-section" class="mb-4 hidden">
+            <h2 class="text-xl font-semibold mb-2 text-center">Donne N°<span id="deal-number-display"></span></h2>
+
+            <!-- ADDED: Dealer and Vulnerability Controls -->
+            <div class="deal-info-controls mb-4">
+                <div>
+                    <label for="dealer-selector">Donneur:</label>
+                    <select id="dealer-selector">
+                        <option value="N">Nord</option>
+                        <option value="E">Est</option>
+                        <option value="S">Sud</option>
+                        <option value="W">Ouest</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="vulnerability-selector">Vulnérabilité:</label>
+                    <select id="vulnerability-selector">
+                        <option value="None">Personne</option>
+                        <option value="NS">N/S</option>
+                        <option value="EW">E/O</option>
+                        <option value="All">Tous</option>
+                    </select>
+                </div>
+            </div>
+            <!-- END ADDED SECTION -->
+
+            <div id="deal-display" class="grid grid-cols-3 gap-4 p-4 border rounded bg-gray-50 relative">
+                <!-- ... (Rest of the North, West, East, South hand divs remain the same) ... -->
+                <div id="hand-N" class="col-start-2 bg-white p-3 rounded shadow">
+                    <h3 class="font-bold text-center mb-2">
+                        Nord <span id="hand-N-count" class="card-count"></span>
+                    </h3>
+                    <div class="hand-content">
+                        <div id="hand-N-S" data-player="N" data-suit="S" class="suit-container mb-1"><span class="suit-symbol suit-s">♠</span></div>
+                        <div id="hand-N-H" data-player="N" data-suit="H" class="suit-container mb-1"><span class="suit-symbol suit-h">♥</span></div>
+                        <div id="hand-N-D" data-player="N" data-suit="D" class="suit-container mb-1"><span class="suit-symbol suit-d">♦</span></div>
+                        <div id="hand-N-C" data-player="N" data-suit="C" class="suit-container"><span class="suit-symbol suit-c">♣</span></div>
+                    </div>
+                </div>
+
+                <div id="hand-W" class="row-start-2 self-center bg-white p-3 rounded shadow">
+                     <h3 class="font-bold text-center mb-2">
+                        Ouest <span id="hand-W-count" class="card-count"></span>
+                    </h3>
+                     <div class="hand-content">
+                         <div id="hand-W-S" data-player="W" data-suit="S" class="suit-container mb-1"><span class="suit-symbol suit-s">♠</span></div>
+                         <div id="hand-W-H" data-player="W" data-suit="H" class="suit-container mb-1"><span class="suit-symbol suit-h">♥</span></div>
+                         <div id="hand-W-D" data-player="W" data-suit="D" class="suit-container mb-1"><span class="suit-symbol suit-d">♦</span></div>
+                         <div id="hand-W-C" data-player="W" data-suit="C" class="suit-container"><span class="suit-symbol suit-c">♣</span></div>
+                    </div>
+                </div>
+
+                 <div class="row-start-2 col-start-2"></div> <!-- Spacer -->
+
+                <div id="hand-E" class="row-start-2 col-start-3 self-center bg-white p-3 rounded shadow">
+                     <h3 class="font-bold text-center mb-2">
+                        Est <span id="hand-E-count" class="card-count"></span>
+                    </h3>
+                      <div class="hand-content">
+                        <div id="hand-E-S" data-player="E" data-suit="S" class="suit-container mb-1"><span class="suit-symbol suit-s">♠</span></div>
+                        <div id="hand-E-H" data-player="E" data-suit="H" class="suit-container mb-1"><span class="suit-symbol suit-h">♥</span></div>
+                        <div id="hand-E-D" data-player="E" data-suit="D" class="suit-container mb-1"><span class="suit-symbol suit-d">♦</span></div>
+                        <div id="hand-E-C" data-player="E" data-suit="C" class="suit-container"><span class="suit-symbol suit-c">♣</span></div>
+                    </div>
+                </div>
+
+                <div id="hand-S" class="row-start-3 col-start-2 bg-white p-3 rounded shadow">
+                     <h3 class="font-bold text-center mb-2">
+                        Sud <span id="hand-S-count" class="card-count"></span>
+                    </h3>
+                     <div class="hand-content">
+                        <div id="hand-S-S" data-player="S" data-suit="S" class="suit-container mb-1"><span class="suit-symbol suit-s">♠</span></div>
+                        <div id="hand-S-H" data-player="S" data-suit="H" class="suit-container mb-1"><span class="suit-symbol suit-h">♥</span></div>
+                        <div id="hand-S-D" data-player="S" data-suit="D" class="suit-container mb-1"><span class="suit-symbol suit-d">♦</span></div>
+                        <div id="hand-S-C" data-player="S" data-suit="C" class="suit-container"><span class="suit-symbol suit-c">♣</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <div id="intermediate-zone" class="mt-6 p-4 border rounded bg-blue-50 hidden">
+             <h3 class="text-lg font-semibold mb-3 text-center text-blue-800">Zone Intermédiaire (Déposer ici)</h3>
+
+             <div id="intermediate-dropzone"
+                  data-zone="intermediate-single"
+                  class="suit-container p-3 bg-white rounded shadow-sm flex flex-wrap items-start min-h-[60px]">
+
+                  <!-- Spans to hold cards within the intermediate zone, one per suit -->
+                  <span class="inline-flex items-center mr-3 mb-1" data-intermediate-suit="S"><span class="suit-symbol suit-s mr-1">♠</span></span>
+                  <span class="inline-flex items-center mr-3 mb-1" data-intermediate-suit="H"><span class="suit-symbol suit-h mr-1">♥</span></span>
+                  <span class="inline-flex items-center mr-3 mb-1" data-intermediate-suit="D"><span class="suit-symbol suit-d mr-1">♦</span></span>
+                  <span class="inline-flex items-center mr-3 mb-1" data-intermediate-suit="C"><span class="suit-symbol suit-c mr-1">♣</span></span>
+                  <!-- Cards will be appended here by JS -->
+             </div>
+        </div>
+
+
+        <div id="save-section" class="mt-4 text-center hidden">
+            <button id="save-deal-btn" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed">
+                Sauvegarder la donne actuelle (PBN)
+            </button>
+            <!-- Zone for feedback/confirmation messages -->
+            <div id="save-feedback" class="mt-2 text-sm min-h-[1.5em]"></div>
+        </div>
+
+    </div>
+
+    <!-- Make sure the script name and version matches -->
+    <script src="script.js?v=1.0.7"></script> <!-- Increment version -->
+</body>
+</html>
