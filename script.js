@@ -172,6 +172,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Chargement et Initialisation ---
 
+// --- Event Listeners for Dealer/Vulnerability Selectors ---
+dealerSelector.addEventListener('change', (event) => {
+    if (currentDealData) {
+        currentDealData.dealer = event.target.value; // Updates the current state
+        console.log("Dealer changed to:", currentDealData.dealer);
+    }
+});
+
+vulnerabilitySelector.addEventListener('change', (event) => {
+    if (currentDealData) {
+        currentDealData.vulnerability = event.target.value; // Updates the current state
+        console.log("Vulnerability changed to:", currentDealData.vulnerability);
+    }
+});
+
     loadDefaultBtn.addEventListener('click', () => {
         clearFeedback(saveFeedback);
         fetch('default.pbn')
